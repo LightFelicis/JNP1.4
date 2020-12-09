@@ -6,20 +6,15 @@
 #include <string_view>
 #include <type_traits>
 
-class Id {
-public:
-    constexpr Id(char *id) : idLabel(id) {
-        static_assert(isLabelValid(idLabel), "Label is not valid");
-    }
-
-private:
-    static constexpr bool isCharacterValid(char c) {
+namespace internal {
+    constexpr bool isCharacterValid(const char c) {
         return ('0' <= c && c <= '9') ||
-               ('a' <= c && c <= 'z') ||
-               ('A' <= c && c <= 'Z');
+            ('a' <= c && c <= 'z') ||
+            ('A' <= c && c <= 'Z');
     }
 
-    static constexpr bool isLabelValid(std::string_view idLabel) {
+
+    constexpr bool isLabelValid(std::string_view idLabel) {
         for (int i = 0; i < idLabel.size(); i++) {
             if (!isValidCharacter(idLabel[i])) {
                 return false;
@@ -27,9 +22,28 @@ private:
         }
         return true;
     }
-
-    std::string_view idLabel;
 };
+
+constexpr uint64_t Id(char *id) {
+    constexpr std::string_view s(id);
+    static_assert(internal::isLabelValid(s), "Label is not valid");
+    uint64_t codedId = 0;
+    for (const auto &c : s) {
+        codedId <<= 8;
+        codedId += static_cast<uint8_t>(c);
+    }
+    return codedId;
+}
+
+static constexpr bool isLabelValid(std::string_view idLabel) {
+    for (int i = 0; i < idLabel.size(); i++) {
+        if (!isValidCharacter(idLabel[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 
 template<auto V>
 class Num {
