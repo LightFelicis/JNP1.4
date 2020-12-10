@@ -5,6 +5,7 @@
 #include <array>
 #include <string_view>
 #include <type_traits>
+#include <tuple>
 
 namespace internal {
     constexpr bool isCharacterValid(const char c) {
@@ -13,10 +14,9 @@ namespace internal {
             ('A' <= c && c <= 'Z');
     }
 
-
     constexpr bool isLabelValid(std::string_view idLabel) {
-        for (int i = 0; i < idLabel.size(); i++) {
-            if (!isValidCharacter(idLabel[i])) {
+        for (size_t i = 0; i < idLabel.size(); i++) {
+            if (!isCharacterValid(idLabel[i])) {
                 return false;
             }
         }
@@ -25,8 +25,10 @@ namespace internal {
 };
 
 constexpr uint64_t Id(char *id) {
-    constexpr std::string_view s(id);
-    static_assert(internal::isLabelValid(s), "Label is not valid");
+    std::string_view s(id);
+    if (!internal::isLabelValid(s)) {
+        return 0;
+    }
     uint64_t codedId = 0;
     for (const auto &c : s) {
         codedId <<= 8;
@@ -35,23 +37,12 @@ constexpr uint64_t Id(char *id) {
     return codedId;
 }
 
-static constexpr bool isLabelValid(std::string_view idLabel) {
-    for (int i = 0; i < idLabel.size(); i++) {
-        if (!isValidCharacter(idLabel[i])) {
-            return false;
-        }
-    }
-    return true;
-}
-
-
 template<auto V>
 class Num {
 public:
-    static_assert(std::is_integral<typeof(V)>(), "Value is not integral type.");
+    static_assert(std::is_integral<decltype(V)>(), "Value is not integral type.");
 
-    template<typename T, size_t N>
-    static constexpr auto getRvalue(std::array <T, N> &memory) {
+    static constexpr auto getRvalue() {
         return V;
     }
 
@@ -75,7 +66,6 @@ public:
     }
 };
 
-
 template<typename D, typename S>
 class Mov {
 public:
@@ -85,26 +75,34 @@ public:
     }
 };
 
+template<uint64_t T>
+class Lea {};
+
+template<uint64_t key, typename value>
+class D {};
+
 template<typename T>
-using IsLValue = std::false_type;
-
-template<>
-using IsLValue<Mem> = std::true_type;
+struct IsLValue : public std::false_type {};
 
 template<typename T>
-using IsRValue = std::false_type;
+struct IsLValue<Mem<T>> : public std::true_type {};
 
-template<>
-using IsRValue<Mem> = std::true_type;
+template<typename T>
+struct IsRValue : public std::false_type {};
 
-template<>
-using IsRValue<Num> = std::true_type;
+template<typename T>
+struct IsRValue<Mem<T>> : public std::true_type {};
 
-template<>
-using IsRValue<Lea> = std::true_type;
+template<auto V>
+struct IsRValue<Num<V>> : public std::true_type {};
+
+// template<typename T>
+// struct IsRValue<Lea<T>> : public std::true_type {};
 
 template<typename... T>
 class Program {
+private:
+    using Instructions = std::tuple<T...>;
 public:
     // TODO: Napisać static_assert na sprawdzenie czy w programie są instrukcje -- D, Add itp.
     template<std::size_t N>
@@ -113,15 +111,43 @@ public:
         using type = typename std::tuple_element<N, Instructions>::type;
     };
 
-private:
-    using Instructions = std::tuple<T...>;
+    template <typename, typename>
+    class TupleCat;
+    template <typename... First, typename... Second>
+    class TupleCat<std::tuple<First...>, std::tuple<Second...>> {
+        using type = std::tuple<First..., Second...>;
+    };
+
+    template<uint64_t key, size_t value>
+    class KeyValuePair {};
+
+    template<size_t index, typename... Instructions>
+    struct MappingInternal {
+        using type = std::tuple<>;
+    };
+
+    template<size_t index, uint64_t key, typename value, typename... Instructions> 
+    struct MappingInternal<index, D<key, value>, Instructions...> {
+        using type = typename TupleCat<typename MappingInternal<index + 1, Instructions...>::type, std::tuple<KeyValuePair<key, index>>>::type;
+    };
+
+    template<size_t index, typename SingleInstruction, typename... Instructions> 
+    struct MappingInternal<index, SingleInstruction, Instructions...> {
+        using type = typename MappingInternal<index, Instructions...>::type;
+    };
+
+    template<typename... Instructions>
+    struct Mapping {
+        using type = typename MappingInternal<0, Instructions...>::type;
+    };
+
 };
 
 template<typename T>
-using IsProgram = std::false_type;
+struct IsProgram : public std::false_type {};
 
 template<typename... T>
-using IsProgram<Program<T...>> = std::true_type;
+struct IsProgram<Program<T...>> : public std::true_type {};
 
 template<std::size_t N, typename T>
 class Computer {
@@ -132,7 +158,7 @@ public:
     static constexpr std::array <T, N> boot() {
         static_assert(IsProgram<P>(), "Not a valid program type.");
         std::array <T, N> memory{};  // to zastąpić procesorem
-        Run<T, N, P>::run(memory);
+        // Run<T, N, P>::run(memory);
         return memory;
     }
 };
