@@ -24,7 +24,7 @@ namespace internal {
     }
 };
 
-constexpr uint64_t Id(char *id) {
+constexpr uint64_t Id(const char *id) {
     std::string_view s(id);
     if (!internal::isLabelValid(s)) {
         return 0;
@@ -38,7 +38,7 @@ constexpr uint64_t Id(char *id) {
 }
 
 template<auto V>
-class Num {
+struct Num {
 public:
     static_assert(std::is_integral<decltype(V)>(), "Value is not integral type.");
 
@@ -51,7 +51,7 @@ private:
 };
 
 template<typename P>
-class Mem {
+struct Mem {
 public:
     template<typename T, size_t N>
     static constexpr auto &getLvalue(std::array <T, N> &memory) {
@@ -67,7 +67,7 @@ public:
 };
 
 template<typename D, typename S>
-class Mov {
+struct Mov {
 public:
     template<typename T, size_t N>
     static constexpr void executeCommand(std::array <T, N> &memory) {
@@ -76,10 +76,10 @@ public:
 };
 
 template<uint64_t T>
-class Lea {};
+struct Lea {};
 
 template<uint64_t key, typename value>
-class D {};
+struct D {};
 
 template<typename T>
 struct IsLValue : public std::false_type {};
@@ -100,26 +100,25 @@ struct IsRValue<Num<V>> : public std::true_type {};
 // struct IsRValue<Lea<T>> : public std::true_type {};
 
 template<typename... T>
-class Program {
-private:
+struct Program {
     using Instructions = std::tuple<T...>;
-public:
+
     // TODO: Napisać static_assert na sprawdzenie czy w programie są instrukcje -- D, Add itp.
     template<std::size_t N>
-    class NthInstruction {
+    struct NthInstruction {
     public:
         using type = typename std::tuple_element<N, Instructions>::type;
     };
 
     template <typename, typename>
-    class TupleCat;
+    struct TupleCat;
     template <typename... First, typename... Second>
-    class TupleCat<std::tuple<First...>, std::tuple<Second...>> {
+    struct TupleCat<std::tuple<First...>, std::tuple<Second...>> {
         using type = std::tuple<First..., Second...>;
     };
 
     template<uint64_t key, size_t value>
-    class KeyValuePair {};
+    struct KeyValuePair {};
 
     template<size_t index, typename... Instructions>
     struct MappingInternal {
@@ -141,6 +140,19 @@ public:
         using type = typename MappingInternal<0, Instructions...>::type;
     };
 
+    template<uint64_t key, typename MappingType>
+    struct MatchKeyMapping {};
+
+    template <uint64_t key, size_t val, typename ...OtherKeyValuePairs>
+    struct MatchKeyMapping<key, std::tuple<KeyValuePair<key, val>, OtherKeyValuePairs...>> {
+        constexpr static size_t value = val;
+    };
+
+    template <uint64_t key, uint64_t key2, size_t val, typename ...OtherKeyValuePairs>
+    struct MatchKeyMapping<key, std::tuple<KeyValuePair<key2, val>, OtherKeyValuePairs...>> {
+        constexpr static size_t value = MatchKeyMapping<key, std::tuple<OtherKeyValuePairs...>>::value;
+    };
+
 };
 
 template<typename T>
@@ -149,32 +161,41 @@ struct IsProgram : public std::false_type {};
 template<typename... T>
 struct IsProgram<Program<T...>> : public std::true_type {};
 
-template<std::size_t N, typename T>
-class Computer {
-public:
-    static_assert(std::is_integral<T>(), "Not an integral type.");
+template <std::size_t memorySize, typename T>
+struct State {
+    constexpr State() : State(false, false, {}) {}
+    bool zf = false;
+    bool sf = false;
+    std::array<T, memorySize> memoryBlocks;
+};
 
-    template<typename P>
-    static constexpr std::array <T, N> boot() {
-        static_assert(IsProgram<P>(), "Not a valid program type.");
-        std::array <T, N> memory{};  // to zastąpić procesorem
-        // Run<T, N, P>::run(memory);
-        return memory;
+/* Initial parsing operations */
+// Tu wyszukuję tylko polecenia D, zeby zaktualizować memory, pozostałe powinny nie modyfikować memory
+template<size_t memorySize, typename T, typename InitialMapping, typename... Instructions>
+struct InitialInstructionsParsing {
+    constexpr static void evaluate(State<memorySize, T> &) {}
+};
+
+template<size_t memorySize, typename T, uint64_t key, typename value, typename InitialMapping, typename... Instructions>
+struct InitialInstructionsParsing <memorySize, T, InitialMapping, std::tuple<D<key, value>, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        constexpr std::size_t position = Program<>::MatchKeyMapping<key, std::tuple<>>::value;
+        s[position] = value::getRvalue();
     }
 };
 
-template <std::size_t N, typename T>
-class State {
+template<std::size_t memorySize, typename T>
+struct Computer {
 public:
-    constexpr State() : State(false, false, {}) {}
-    /* TODO: Dodać "ustawFlagę", "Zmień memoryBlocks" które zwrócą nowy stan */
-private:
-    constexpr State(bool newZf, bool newSf, std::array<T, N> newBlocks)
-            : zf(newZf), sf(newSf), memoryBlocks(newBlocks) {}
-    bool zf = false;
-    bool sf = false;
-    std::array<T, N> memoryBlocks;
-};
+    static_assert(std::is_integral<T>(), "Not an integral type.");
 
+    template<typename... ProgramInstructions>
+    static constexpr std::array <T, memorySize> boot() {
+        static_assert(IsProgram<ProgramInstructions...>(), "Not a valid program type.");
+        State<memorySize, T> computerMemory; // Tworzę pamięć dla komputera + flagi
+        // Run<T, memorySize, ProgramInstructions...>::run(computerMemory);
+        return computerMemory.memoryBlocks;
+    }
+};
 
 #endif //ASSEMBLER_COMPUTER_H
