@@ -96,8 +96,8 @@ struct IsRValue<Mem<T>> : public std::true_type {};
 template<auto V>
 struct IsRValue<Num<V>> : public std::true_type {};
 
-// template<typename T>
-// struct IsRValue<Lea<T>> : public std::true_type {};
+template<uint64_t V>
+struct IsRValue<Lea<V>> : public std::true_type {};
 
 template<typename... T>
 struct Program {
