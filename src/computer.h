@@ -181,6 +181,14 @@ struct InitialInstructionsParsing <memorySize, T, InitialMapping, std::tuple<D<k
     constexpr static void evaluate(State<memorySize, T> &s) {
         constexpr std::size_t position = Program<>::MatchKeyMapping<key, std::tuple<>>::value;
         s[position] = value::getRvalue();
+        InitialInstructionsParsing<memorySize, T, InitialMapping, Instructions...>::evaluate(s);        
+    }
+};
+
+template<size_t memorySize, typename T, typename InitialMapping, typename SingleInstruction, typename... Instructions>
+struct InitialInstructionsParsing <memorySize, T, InitialMapping, std::tuple<SingleInstruction, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        InitialInstructionsParsing<memorySize, T, InitialMapping, Instructions...>::evaluate(s);
     }
 };
 
