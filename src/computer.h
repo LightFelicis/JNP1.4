@@ -75,6 +75,12 @@ public:
     }
 };
 
+template<uint64_t>
+struct Label {};
+
+template<typename T>
+struct Jmp {};
+
 template<uint64_t T>
 struct Lea {};
 
@@ -191,6 +197,43 @@ struct InitialInstructionsParsing <memorySize, T, InitialMapping, std::tuple<Sin
         InitialInstructionsParsing<memorySize, T, InitialMapping, Instructions...>::evaluate(s);
     }
 };
+
+// Pamięć została zmodyfikowana tak, zeby odpowiednie deklaracje były powpisywane w pamięć. Teraz "właściwe" przechodzenie po instrukcjach.
+template<size_t memorySize, typename T, typename InitialMapping, typename JumpLabel, bool passedLabel, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner {
+    constexpr static void evaluate(State<memorySize, T> &) {}
+};
+
+template<size_t memorySize, typename T, typename InitialMapping, uint64_t keyLabel, uint64_t keyLabel2, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, InitialMapping, Label<keyLabel>, false, InstructionsOrigin, Label<keyLabel2>, Instructions...> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        InstructionsRunner<memorySize, T, InitialMapping, Label<keyLabel>, keyLabel == keyLabel2, InstructionsOrigin, Instructions...>::evaluate(s);
+    }
+};
+
+template<size_t memorySize, typename T, typename InitialMapping, typename keyLabel, typename InstructionsOrigin, typename SingleInstruction, typename... Instructions>
+struct InstructionsRunner <memorySize, T, InitialMapping, keyLabel, false, InstructionsOrigin, SingleInstruction, Instructions...> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        InstructionsRunner<memorySize, T, InitialMapping, keyLabel, false, InstructionsOrigin, Instructions...>::evaluate(s);
+    }
+};
+
+// Wywołanie rekurencyjne, jak mamy Jmp to od początku tylko z tą nową labelką i flagą na false.
+template<size_t memorySize, typename T, typename InitialMapping, typename keyLabel, typename newLabel, typename... InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, InitialMapping, keyLabel, true, std::tuple<InstructionsOrigin...>, Jmp<newLabel>, Instructions...> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        InstructionsRunner<memorySize, T, InitialMapping, newLabel, false, std::tuple<InstructionsOrigin...>, InstructionsOrigin...>::evaluate(s);
+    }
+};
+
+template<size_t memorySize, typename T, typename InitialMapping, typename keyLabel, typename SingleInstruction, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, InitialMapping, keyLabel, true, InstructionsOrigin, std::tuple<SingleInstruction, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        // TODO: Dodać pozostałe polecenia czyli Label, Inc, Dec itp.
+        (void) s;
+    }
+};
+
 
 template<std::size_t memorySize, typename T>
 struct Computer {
