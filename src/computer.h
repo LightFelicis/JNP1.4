@@ -24,7 +24,6 @@ namespace internal {
     }
 };
 
-// zmieniłem na klase, ale możliwe że może byc struct
 template <std::size_t memorySize, typename T>
 struct State {
 
@@ -77,6 +76,7 @@ struct Mem {
     }
 };
 
+// dodać sprawdzanie, czy jest deklaracja
 template<uint64_t I>
 struct Lea {
     template<typename T, size_t memorySize>
@@ -93,7 +93,7 @@ struct Lea {
 template<typename Dsc, typename Src>
 struct Mov {};
 
-template<uint64_t>
+template<uint64_t> // czy tutaj może być tylko uint64?
 struct Label {};
 
 template<uint64_t T>
@@ -173,8 +173,8 @@ struct IsProgram : public std::false_type {};
 template<typename... T>
 struct IsProgram<Program<T...>> : public std::true_type {};
 
-
 /* Initial parsing operations */
+
 // Tu wyszukuję tylko polecenia D, zeby zaktualizować memory, pozostałe powinny nie modyfikować memory
 template<size_t memorySize, typename T, typename... Instructions>
 struct InitialInstructionsParsing {
@@ -324,8 +324,10 @@ public:
         static_assert(IsProgram<ProgramIns>(), "Not a valid program type.");
         State<memorySize, T> computerMemory; // Tworzę pamięć dla komputera + flagi
 
+        // Deklaracja zmiennych
         InitialInstructionsParsing<memorySize, T, typename ProgramIns::Instructions>::evaluate(computerMemory);
 
+        // Reszta instrukcji
         InstructionsRunner<memorySize, T , Label<0>, true, typename ProgramIns::Instructions, typename ProgramIns::Instructions>::evaluate(computerMemory);
 
         return computerMemory.memoryBlocks;
