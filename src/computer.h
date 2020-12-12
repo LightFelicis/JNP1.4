@@ -87,7 +87,6 @@ struct Mem {
   }
 };
 
-// dodać sprawdzanie, czy jest deklaracja
 template <uint64_t I>
 struct Lea {
   template <typename T, size_t memorySize>
