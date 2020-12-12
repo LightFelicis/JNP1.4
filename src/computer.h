@@ -99,6 +99,12 @@ struct Label {};
 template<uint64_t T>
 struct Jmp {};
 
+template<uint64_t T>
+struct Jz {};
+
+template<uint64_t T>
+struct Js {};
+
 template<uint64_t key, typename value>
 struct D {};
 
@@ -226,11 +232,34 @@ struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, st
     }
 };
 
+// Jmp
 // Wywołanie rekurencyjne, jak mamy Jmp to od początku tylko z tą nową labelką i flagą na false.
 template<size_t memorySize, typename T, typename keyLabel, uint64_t newLabel, typename InstructionsOrigin, typename... Instructions>
 struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Jmp<newLabel>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
         InstructionsRunner<memorySize, T, Label<newLabel>, false, InstructionsOrigin, InstructionsOrigin>::evaluate(s);
+    }
+};
+
+// Js
+template<size_t memorySize, typename T, typename keyLabel, uint64_t newLabel, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Js<newLabel>, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        if(s.sf == 1)
+            InstructionsRunner<memorySize, T, Label<newLabel>, false, InstructionsOrigin, InstructionsOrigin>::evaluate(s);
+        else
+            InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+    }
+};
+
+// Jz
+template<size_t memorySize, typename T, typename keyLabel, uint64_t newLabel, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Jz<newLabel>, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        if(s.zf == 1)
+            InstructionsRunner<memorySize, T, Label<newLabel>, false, InstructionsOrigin, InstructionsOrigin>::evaluate(s);
+        else
+            InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
 
@@ -250,6 +279,8 @@ template<size_t memorySize, typename T, typename keyLabel, typename Arg1, typena
 struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Add<Arg1, Arg2>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
         Arg1::template getLvalue<T, memorySize>(s) += Arg2::template getRvalue<T, memorySize>(s);
+        s.zf = Arg1::template getRvalue<T, memorySize>(s) == 0;
+        s.sf = Arg1::template getRvalue<T, memorySize>(s) < 0;
         InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
@@ -259,6 +290,8 @@ template<size_t memorySize, typename T, typename keyLabel, typename Arg1, typena
 struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Sub<Arg1, Arg2>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
         Arg1::template getLvalue<T, memorySize>(s) -= Arg2::template getRvalue<T, memorySize>(s);
+        s.zf = Arg1::template getRvalue<T, memorySize>(s) == 0;
+        s.sf = Arg1::template getRvalue<T, memorySize>(s) < 0;
         InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
@@ -268,6 +301,8 @@ template<size_t memorySize, typename T, typename keyLabel, typename Arg, typenam
 struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Inc<Arg>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
         Arg::template getLvalue<T, memorySize>(s)++;
+        s.zf = Arg::template getRvalue<T, memorySize>(s) == 0;
+        s.sf = Arg::template getRvalue<T, memorySize>(s) < 0;
         InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
@@ -277,6 +312,8 @@ template<size_t memorySize, typename T, typename keyLabel, typename Arg, typenam
 struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Dec<Arg>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
         Arg::template getLvalue<T, memorySize>(s)--;
+        s.zf = Arg::template getRvalue<T, memorySize>(s) == 0;
+        s.sf = Arg::template getRvalue<T, memorySize>(s) < 0;
         InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
@@ -289,6 +326,7 @@ struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, st
     constexpr static void evaluate(State<memorySize, T> &s) {
         Arg1::template getLvalue<T, memorySize>(s) = (Arg1::template getRvalue<T, memorySize>(s) // czy tak będzie OK?
                                                       & Arg2::template getRvalue<T, memorySize>(s));
+        s.zf = Arg1::template getRvalue<T, memorySize>(s) == 0;
         InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
@@ -299,6 +337,7 @@ struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, st
     constexpr static void evaluate(State<memorySize, T> &s) {
         Arg1::template getLvalue<T, memorySize>(s) = (Arg1::template getRvalue<T, memorySize>(s)
                                                       | Arg2::template getRvalue<T, memorySize>(s));
+        s.zf = Arg1::template getRvalue<T, memorySize>(s) == 0;
         InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
@@ -308,6 +347,7 @@ template<size_t memorySize, typename T, typename keyLabel, typename Arg, typenam
 struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Not<Arg>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
         Arg::template getLvalue<T, memorySize>(s) = ~(Arg::template getRvalue<T, memorySize>(s));
+        s.zf = Arg::template getRvalue<T, memorySize>(s) == 0;
         InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
