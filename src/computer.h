@@ -10,8 +10,8 @@
 namespace internal {
     constexpr bool isCharacterValid(const char c) {
         return ('0' <= c && c <= '9') ||
-            ('a' <= c && c <= 'z') ||
-            ('A' <= c && c <= 'Z');
+               ('a' <= c && c <= 'z') ||
+               ('A' <= c && c <= 'Z');
     }
 
     constexpr bool isLabelValid(std::string_view idLabel) {
@@ -22,6 +22,19 @@ namespace internal {
         }
         return true;
     }
+};
+
+// zmieniłem na klase, ale możliwe że może byc struct
+template <std::size_t memorySize, typename T>
+struct State {
+
+    constexpr State() : zf(false), sf(false), memoryBlocks(std::array<T,memorySize>()), declarationIDs(std::array<uint64_t, memorySize>()), decCount(0) { }
+
+    bool zf = false;
+    bool sf = false;
+    std::array<T, memorySize> memoryBlocks;
+    std::array<uint64_t, memorySize> declarationIDs;
+    size_t decCount;
 };
 
 constexpr uint64_t Id(const char *id) {
@@ -39,53 +52,80 @@ constexpr uint64_t Id(const char *id) {
 
 template<auto V>
 struct Num {
-public:
     static_assert(std::is_integral<decltype(V)>(), "Value is not integral type.");
 
-    static constexpr auto getRvalue() {
+    template<typename T, size_t memorySize>
+    static constexpr auto getRvalue(State<memorySize, T> &s) {
         return V;
     }
 
-private:
     static constexpr auto value = V;
 };
 
 template<typename P>
 struct Mem {
-public:
-    template<typename T, size_t N>
-    static constexpr auto &getLvalue(std::array <T, N> &memory) {
-        auto addr = P::template getRvalue<T, N>(memory);
-        return memory[addr];
+    template<typename T, size_t memorySize>
+    static constexpr auto &getLvalue(State<memorySize, T> &s) {
+        auto addr = P::template getRvalue<T, memorySize>(s);
+        return s.memoryBlocks[addr];
     }
 
-    template<typename T, size_t N>
-    static constexpr auto getRvalue(std::array <T, N> &memory) {
-        auto addr = P::template getRvalue<T, N>(memory);
-        return memory[addr];
+    template<typename T, size_t memorySize>
+    static constexpr auto getRvalue(State<memorySize, T> &s) {
+        auto addr = P::template getRvalue<T, memorySize>(s);
+        return s.memoryBlocks[addr];
     }
 };
 
-template<typename D, typename S>
-struct Mov {
-public:
-    template<typename T, size_t N>
-    static constexpr void executeCommand(std::array <T, N> &memory) {
-        D::template getLvalue<T, N>(memory) = S::template getRvalue<T, N>(memory);
+template<uint64_t I>
+struct Lea {
+    template<typename T, size_t memorySize>
+    static constexpr auto getRvalue(State<memorySize, T> &s) {
+        for(size_t i=0; i<s.decCount; i++) {
+            if(I == s.declarationIDs[i])
+                return i;
+        }
     }
 };
+
+/* Instructions */
+
+template<typename Dsc, typename Src>
+struct Mov {};
 
 template<uint64_t>
 struct Label {};
 
-template<typename T>
-struct Jmp {};
-
 template<uint64_t T>
-struct Lea {};
+struct Jmp {};
 
 template<uint64_t key, typename value>
 struct D {};
+
+/* arithmetic */
+
+template<typename Arg1, typename Arg2>
+struct Add {};
+
+template<typename Arg1, typename Arg2>
+struct Sub {};
+
+template<typename Arg>
+struct Inc {};
+
+template<typename Arg>
+struct Dec {};
+
+/* logic */
+
+template<typename Arg1, typename Arg2>
+struct And {};
+
+template<typename Arg1, typename Arg2>
+struct Or {};
+
+template<typename Arg>
+struct Not {};
 
 template<typename T>
 struct IsLValue : public std::false_type {};
@@ -102,8 +142,8 @@ struct IsRValue<Mem<T>> : public std::true_type {};
 template<auto V>
 struct IsRValue<Num<V>> : public std::true_type {};
 
-template<uint64_t V>
-struct IsRValue<Lea<V>> : public std::true_type {};
+// template<typename T>
+// struct IsRValue<Lea<T>> : public std::true_type {};
 
 template<typename... T>
 struct Program {
@@ -131,23 +171,24 @@ struct Program {
         using type = std::tuple<>;
     };
 
-    template<size_t index, uint64_t key, typename value, typename... Instructions> 
-    struct MappingInternal<index, D<key, value>, Instructions...> {
-        using type = typename TupleCat<typename MappingInternal<index + 1, Instructions...>::type, std::tuple<KeyValuePair<key, index>>>::type;
+    template<size_t index, uint64_t key, typename value, typename... Instructions>
+    struct MappingInternal<index, std::tuple<D<key, value>, Instructions...>> {
+        using type = typename TupleCat<typename MappingInternal<index + 1, std::tuple<Instructions...>>::type, std::tuple<KeyValuePair<key, index>>>::type;
     };
 
-    template<size_t index, typename SingleInstruction, typename... Instructions> 
-    struct MappingInternal<index, SingleInstruction, Instructions...> {
-        using type = typename MappingInternal<index, Instructions...>::type;
+    template<size_t index, typename SingleInstruction, typename... Instructions>
+    struct MappingInternal<index, std::tuple<SingleInstruction, Instructions...>> {
+        using type = typename MappingInternal<index, std::tuple<Instructions...>>::type;
     };
 
-    template<typename... Instructions>
+    template<typename Instructions>
     struct Mapping {
-        using type = typename MappingInternal<0, Instructions...>::type;
+        using type = typename MappingInternal<0, Instructions>::type;
     };
 
     template<uint64_t key, typename MappingType>
-    struct MatchKeyMapping {};
+    struct MatchKeyMapping {
+    };
 
     template <uint64_t key, size_t val, typename ...OtherKeyValuePairs>
     struct MatchKeyMapping<key, std::tuple<KeyValuePair<key, val>, OtherKeyValuePairs...>> {
@@ -167,70 +208,143 @@ struct IsProgram : public std::false_type {};
 template<typename... T>
 struct IsProgram<Program<T...>> : public std::true_type {};
 
-template <std::size_t memorySize, typename T>
-struct State {
-    constexpr State() : State(false, false, {}) {}
-    bool zf = false;
-    bool sf = false;
-    std::array<T, memorySize> memoryBlocks;
-};
 
 /* Initial parsing operations */
 // Tu wyszukuję tylko polecenia D, zeby zaktualizować memory, pozostałe powinny nie modyfikować memory
-template<size_t memorySize, typename T, typename InitialMapping, typename... Instructions>
+template<size_t memorySize, typename T, typename... Instructions>
 struct InitialInstructionsParsing {
-    constexpr static void evaluate(State<memorySize, T> &) {}
+    constexpr static void evaluate(State<memorySize, T> &s) { }
 };
 
-template<size_t memorySize, typename T, uint64_t key, typename value, typename InitialMapping, typename... Instructions>
-struct InitialInstructionsParsing <memorySize, T, InitialMapping, std::tuple<D<key, value>, Instructions...>> {
+template<size_t memorySize, typename T, uint64_t key, typename value, typename... Instructions>
+struct InitialInstructionsParsing <memorySize, T, std::tuple<D<key, value>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        constexpr std::size_t position = Program<>::MatchKeyMapping<key, std::tuple<>>::value;
-        s[position] = value::getRvalue();
-        InitialInstructionsParsing<memorySize, T, InitialMapping, Instructions...>::evaluate(s);        
+        s.declarationIDs[s.decCount] = key;
+        s.memoryBlocks[s.decCount] = value::value;
+        s.decCount++;
+        InitialInstructionsParsing<memorySize, T, std::tuple<Instructions...>>::evaluate(s);
     }
 };
 
-template<size_t memorySize, typename T, typename InitialMapping, typename SingleInstruction, typename... Instructions>
-struct InitialInstructionsParsing <memorySize, T, InitialMapping, std::tuple<SingleInstruction, Instructions...>> {
+template<size_t memorySize, typename T, typename SingleInstruction, typename... Instructions>
+struct InitialInstructionsParsing <memorySize, T, std::tuple<SingleInstruction, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        InitialInstructionsParsing<memorySize, T, InitialMapping, Instructions...>::evaluate(s);
+        InitialInstructionsParsing<memorySize, T, std::tuple<Instructions...>>::evaluate(s);
     }
 };
 
-// Pamięć została zmodyfikowana tak, zeby odpowiednie deklaracje były powpisywane w pamięć. Teraz "właściwe" przechodzenie po instrukcjach.
-template<size_t memorySize, typename T, typename InitialMapping, typename JumpLabel, bool passedLabel, typename InstructionsOrigin, typename... Instructions>
+/* Parsing operations */
+
+template<size_t memorySize, typename T, typename JumpLabel, bool passedLabel, typename InstructionsOrigin, typename... Instructions>
 struct InstructionsRunner {
-    constexpr static void evaluate(State<memorySize, T> &) {}
+    constexpr static void evaluate(State<memorySize, T> &s) { }
 };
 
-template<size_t memorySize, typename T, typename InitialMapping, uint64_t keyLabel, uint64_t keyLabel2, typename InstructionsOrigin, typename... Instructions>
-struct InstructionsRunner <memorySize, T, InitialMapping, Label<keyLabel>, false, InstructionsOrigin, Label<keyLabel2>, Instructions...> {
+// czy to załatwia cały Label? chyba tak
+template<size_t memorySize, typename T, uint64_t keyLabel, uint64_t keyLabel2, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, Label<keyLabel>, false, InstructionsOrigin, std::tuple<Label<keyLabel2>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        InstructionsRunner<memorySize, T, InitialMapping, Label<keyLabel>, keyLabel == keyLabel2, InstructionsOrigin, Instructions...>::evaluate(s);
+        InstructionsRunner<memorySize, T, Label<keyLabel>, keyLabel == keyLabel2, std::tuple<InstructionsOrigin, Instructions...>>::evaluate(s);
     }
 };
 
-template<size_t memorySize, typename T, typename InitialMapping, typename keyLabel, typename InstructionsOrigin, typename SingleInstruction, typename... Instructions>
-struct InstructionsRunner <memorySize, T, InitialMapping, keyLabel, false, InstructionsOrigin, SingleInstruction, Instructions...> {
+template<size_t memorySize, typename T, typename keyLabel, typename InstructionsOrigin, typename SingleInstruction, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, false, InstructionsOrigin, std::tuple<SingleInstruction, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        InstructionsRunner<memorySize, T, InitialMapping, keyLabel, false, InstructionsOrigin, Instructions...>::evaluate(s);
+        InstructionsRunner<memorySize, T, keyLabel, false, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+    }
+};
+
+template<size_t memorySize, typename T, typename keyLabel, typename InstructionsOrigin, typename SingleInstruction, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<SingleInstruction, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
 
 // Wywołanie rekurencyjne, jak mamy Jmp to od początku tylko z tą nową labelką i flagą na false.
-template<size_t memorySize, typename T, typename InitialMapping, typename keyLabel, typename newLabel, typename... InstructionsOrigin, typename... Instructions>
-struct InstructionsRunner <memorySize, T, InitialMapping, keyLabel, true, std::tuple<InstructionsOrigin...>, Jmp<newLabel>, Instructions...> {
+template<size_t memorySize, typename T, typename keyLabel, uint64_t newLabel, typename... InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, std::tuple<InstructionsOrigin...>, std::tuple<Jmp<newLabel>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        InstructionsRunner<memorySize, T, InitialMapping, newLabel, false, std::tuple<InstructionsOrigin...>, InstructionsOrigin...>::evaluate(s);
+        InstructionsRunner<memorySize, T, Label<newLabel>, false, std::tuple<InstructionsOrigin...>, std::tuple<InstructionsOrigin...>>::evaluate(s);
     }
 };
 
-template<size_t memorySize, typename T, typename InitialMapping, typename keyLabel, typename SingleInstruction, typename InstructionsOrigin, typename... Instructions>
-struct InstructionsRunner <memorySize, T, InitialMapping, keyLabel, true, InstructionsOrigin, std::tuple<SingleInstruction, Instructions...>> {
+// Mov
+template<size_t memorySize, typename T, typename keyLabel, typename Dst, typename Src, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Mov<Dst, Src>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        // TODO: Dodać pozostałe polecenia czyli Label, Inc, Dec itp.
-        (void) s;
+        Dst::template getLvalue<T, memorySize>(s) = Src::template getRvalue<T, memorySize>(s);
+        InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+    }
+};
+
+/* Arithmetic */
+
+// Add
+template<size_t memorySize, typename T, typename keyLabel, typename Arg1, typename Arg2, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Add<Arg1, Arg2>, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        Arg1::template getLvalue<T, memorySize>(s) += Arg2::template getRvalue<T, memorySize>(s);
+        InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+    }
+};
+
+// Sub
+template<size_t memorySize, typename T, typename keyLabel, typename Arg1, typename Arg2, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Sub<Arg1, Arg2>, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        Arg1::template getLvalue<T, memorySize>(s) -= Arg2::template getRvalue<T, memorySize>(s);
+        InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+    }
+};
+
+// Inc
+template<size_t memorySize, typename T, typename keyLabel, typename Arg, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Inc<Arg>, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        Arg::template getLvalue<T, memorySize>(s)++;
+        InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+    }
+};
+
+// Dec
+template<size_t memorySize, typename T, typename keyLabel, typename Arg, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Dec<Arg>, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        Arg::template getLvalue<T, memorySize>(s)--;
+        InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+    }
+};
+
+/* logic */
+
+// And
+template<size_t memorySize, typename T, typename keyLabel, typename Arg1, typename Arg2, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<And<Arg1, Arg2>, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        Arg1::template getLvalue<T, memorySize>(s) = (Arg1::template getRvalue<T, memorySize>(s) // czy tak będzie OK?
+                                                      & Arg2::template getRvalue<T, memorySize>(s));
+        InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+    }
+};
+
+// Or
+template<size_t memorySize, typename T, typename keyLabel, typename Arg1, typename Arg2, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Or<Arg1, Arg2>, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        Arg1::template getLvalue<T, memorySize>(s) = (Arg1::template getRvalue<T, memorySize>(s)
+                                                      | Arg2::template getRvalue<T, memorySize>(s));
+        InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+    }
+};
+
+// Not
+template<size_t memorySize, typename T, typename keyLabel, typename Arg, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Not<Arg>, Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        Arg::template getLvalue<T, memorySize>(s) = ~(Arg::template getRvalue<T, memorySize>(s));
+        InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
 
@@ -240,11 +354,15 @@ struct Computer {
 public:
     static_assert(std::is_integral<T>(), "Not an integral type.");
 
-    template<typename... ProgramInstructions>
+    template<typename ProgramIns>
     static constexpr std::array <T, memorySize> boot() {
-        static_assert(IsProgram<ProgramInstructions...>(), "Not a valid program type.");
+        static_assert(IsProgram<ProgramIns>(), "Not a valid program type.");
         State<memorySize, T> computerMemory; // Tworzę pamięć dla komputera + flagi
-        // Run<T, memorySize, ProgramInstructions...>::run(computerMemory);
+
+        InitialInstructionsParsing<memorySize, T, typename ProgramIns::Instructions>::evaluate(computerMemory);
+
+        InstructionsRunner<memorySize, T , Label<0>, true, typename ProgramIns::Instructions, typename ProgramIns::Instructions>::evaluate(computerMemory);
+
         return computerMemory.memoryBlocks;
     }
 };
