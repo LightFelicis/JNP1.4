@@ -24,6 +24,8 @@ namespace internal {
     }
 };
 
+// TODO: dopisać compare
+
 template <std::size_t memorySize, typename T>
 struct State {
 
@@ -44,7 +46,10 @@ constexpr uint64_t Id(const char *id) {
     uint64_t codedId = 0;
     for (const auto &c : s) {
         codedId <<= 8;
-        codedId += static_cast<uint8_t>(c);
+        if (static_cast<uint8_t>(c) >= 'a')
+            codedId += static_cast<uint8_t>(c-'a');
+        else
+            codedId += static_cast<uint8_t>(c-'A');
     }
     return codedId;
 }
@@ -85,6 +90,7 @@ struct Lea {
             if(I == s.declarationIDs[i])
                 return i;
         }
+        throw "Nonexisting ID";
     }
 };
 
