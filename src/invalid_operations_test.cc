@@ -12,6 +12,7 @@ int main() {
     using fail_lea = Program<Lea<Id("a")>>;
     using fail_id = Program<Id("a")>;
 
+    // TODO: naprawić, żeby się nie kompilowało
     test_machine::boot<fail_mem>();
     test_machine::boot<fail_num>();
     test_machine::boot<fail_lea>();
