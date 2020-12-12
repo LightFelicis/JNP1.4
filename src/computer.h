@@ -27,8 +27,6 @@ constexpr bool isLabelValid(std::string_view idLabel) {
 }
 };
 
-// TODO: dopisać compare
-
 template <std::size_t memorySize, typename T>
 struct State {
   constexpr State()
@@ -168,7 +166,7 @@ struct IsRValue<Mem<T>> : public std::true_type {};
 template <auto V>
 struct IsRValue<Num<V>> : public std::true_type {};
 
-template<uint64_t I>
+template <uint64_t I>
 struct IsRValue<Lea<I>> : public std::true_type {};
 
 /* Co jest poprawną instrukcją */
@@ -266,7 +264,8 @@ template <size_t memorySize, typename T, typename SingleInstruction,
 struct InitialInstructionsParsing<
     memorySize, T, std::tuple<SingleInstruction, Instructions...>> {
   constexpr static void evaluate(State<memorySize, T> &s) {
-    static_assert(isProperInstruction<SingleInstruction>::value, "This is not a valid instruction.");
+    static_assert(isProperInstruction<SingleInstruction>::value,
+                  "This is not a valid instruction.");
     InitialInstructionsParsing<memorySize, T,
                                std::tuple<Instructions...>>::evaluate(s);
   }
@@ -442,8 +441,8 @@ struct InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
                           std::tuple<And<Arg1, Arg2>, Instructions...>> {
   constexpr static void evaluate(State<memorySize, T> &s) {
     Arg1::template getLvalue<T, memorySize>(s) =
-        (Arg1::template getRvalue<T, memorySize>(s)
-         & Arg2::template getRvalue<T, memorySize>(s));
+        (Arg1::template getRvalue<T, memorySize>(s) &
+         Arg2::template getRvalue<T, memorySize>(s));
     s.zf = Arg1::template getRvalue<T, memorySize>(s) == 0;
     InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
                        std::tuple<Instructions...>>::evaluate(s);
@@ -486,8 +485,10 @@ template <size_t memorySize, typename T, typename keyLabel, typename Arg1,
 struct InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
                           std::tuple<Cmp<Arg1, Arg2>, Instructions...>> {
   constexpr static void evaluate(State<memorySize, T> &s) {
-    s.zf = (Arg1::template getRvalue<T, memorySize>(s) == Arg2::template getRvalue<T, memorySize>(s));
-    s.sf = (Arg1::template getRvalue<T, memorySize>(s) < Arg2::template getRvalue<T, memorySize>(s));
+    s.zf = (Arg1::template getRvalue<T, memorySize>(s) ==
+            Arg2::template getRvalue<T, memorySize>(s));
+    s.sf = (Arg1::template getRvalue<T, memorySize>(s) <
+            Arg2::template getRvalue<T, memorySize>(s));
     InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
                        std::tuple<Instructions...>>::evaluate(s);
   }
