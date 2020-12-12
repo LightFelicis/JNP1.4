@@ -59,7 +59,7 @@ struct Num {
     static_assert(std::is_integral<decltype(V)>(), "Value is not integral type.");
 
     template<typename T, size_t memorySize>
-    static constexpr auto getRvalue(State<memorySize, T> &s) {
+    static constexpr auto getRvalue(State<memorySize, T> &) {
         return V;
     }
 
@@ -190,7 +190,7 @@ struct IsProgram<Program<T...>> : public std::true_type {};
 // Tu wyszukuję tylko polecenia D, zeby zaktualizować memory, pozostałe powinny nie modyfikować memory
 template<size_t memorySize, typename T, typename... Instructions>
 struct InitialInstructionsParsing {
-    constexpr static void evaluate(State<memorySize, T> &s) { }
+    constexpr static void evaluate(State<memorySize, T> &) { }
 };
 
 template<size_t memorySize, typename T, uint64_t key, typename value, typename... Instructions>
@@ -214,7 +214,7 @@ struct InitialInstructionsParsing <memorySize, T, std::tuple<SingleInstruction, 
 
 template<size_t memorySize, typename T, typename JumpLabel, bool passedLabel, typename InstructionsOrigin, typename... Instructions>
 struct InstructionsRunner {
-    constexpr static void evaluate(State<memorySize, T> &s) { }
+    constexpr static void evaluate(State<memorySize, T> &) { }
 };
 
 template<size_t memorySize, typename T, uint64_t keyLabel, uint64_t keyLabel2, typename InstructionsOrigin, typename... Instructions>
@@ -251,10 +251,11 @@ struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, st
 template<size_t memorySize, typename T, typename keyLabel, uint64_t newLabel, typename InstructionsOrigin, typename... Instructions>
 struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Js<newLabel>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        if(s.sf == 1)
+        if(s.sf == 1) {
             InstructionsRunner<memorySize, T, Label<newLabel>, false, InstructionsOrigin, InstructionsOrigin>::evaluate(s);
-        else
+        } else {
             InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+        }
     }
 };
 
@@ -262,10 +263,11 @@ struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, st
 template<size_t memorySize, typename T, typename keyLabel, uint64_t newLabel, typename InstructionsOrigin, typename... Instructions>
 struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Jz<newLabel>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        if(s.zf == 1)
+        if(s.zf == 1) {
             InstructionsRunner<memorySize, T, Label<newLabel>, false, InstructionsOrigin, InstructionsOrigin>::evaluate(s);
-        else
+        } else {
             InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
+        }
     }
 };
 
