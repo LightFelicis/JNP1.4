@@ -1,12 +1,12 @@
 #ifndef ASSEMBLER_COMPUTER_H
 #define ASSEMBLER_COMPUTER_H
 
-#include <cstddef>
 #include <array>
+#include <cstddef>
 #include <stdexcept>
 #include <string_view>
-#include <type_traits>
 #include <tuple>
+#include <type_traits>
 
 namespace internal {
 constexpr bool isCharacterValid(const char c) {
