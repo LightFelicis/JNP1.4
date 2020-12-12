@@ -205,11 +205,10 @@ struct InstructionsRunner {
     constexpr static void evaluate(State<memorySize, T> &s) { }
 };
 
-// czy to załatwia cały Label? chyba tak
 template<size_t memorySize, typename T, uint64_t keyLabel, uint64_t keyLabel2, typename InstructionsOrigin, typename... Instructions>
 struct InstructionsRunner <memorySize, T, Label<keyLabel>, false, InstructionsOrigin, std::tuple<Label<keyLabel2>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        InstructionsRunner<memorySize, T, Label<keyLabel>, keyLabel == keyLabel2, std::tuple<InstructionsOrigin, Instructions...>>::evaluate(s);
+        InstructionsRunner<memorySize, T, Label<keyLabel>, keyLabel == keyLabel2, InstructionsOrigin, std::tuple<Instructions...>>::evaluate(s);
     }
 };
 
@@ -228,10 +227,10 @@ struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, st
 };
 
 // Wywołanie rekurencyjne, jak mamy Jmp to od początku tylko z tą nową labelką i flagą na false.
-template<size_t memorySize, typename T, typename keyLabel, uint64_t newLabel, typename... InstructionsOrigin, typename... Instructions>
-struct InstructionsRunner <memorySize, T, keyLabel, true, std::tuple<InstructionsOrigin...>, std::tuple<Jmp<newLabel>, Instructions...>> {
+template<size_t memorySize, typename T, typename keyLabel, uint64_t newLabel, typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner <memorySize, T, keyLabel, true, InstructionsOrigin, std::tuple<Jmp<newLabel>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        InstructionsRunner<memorySize, T, Label<newLabel>, false, std::tuple<InstructionsOrigin...>, std::tuple<InstructionsOrigin...>>::evaluate(s);
+        InstructionsRunner<memorySize, T, Label<newLabel>, false, InstructionsOrigin, InstructionsOrigin>::evaluate(s);
     }
 };
 
