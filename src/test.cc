@@ -98,6 +98,18 @@ using tmpasm_jump2 = Program<
         Inc<Mem<Num<0>>>,
         Jmp<Id("stop")>>;
 
+
+using tmpasm_multiplication = Program<
+        D<Id("a"), Num<5>>,
+        D<Id("b"), Num<10>>,
+        D<Id("c"), Num<0>>,
+        Label<Id("loop")>,
+        Add<Mem<Lea<Id("c")>>, Mem<Lea<Id("b")>>>,
+        Dec<Mem<Lea<Id("a")>>>,
+        Jz<Id("stop")>,
+        Jmp<Id("loop")>,
+        Label<Id("stop")>>;
+
 int main() {
     static_assert(compare(
             Computer<1, int8_t>::boot<tmpasm_move>(),
@@ -158,6 +170,13 @@ int main() {
     static_assert(compare(
             Computer<1, int>::boot<tmpasm_jump2>(),
             std::array<int, 1>({2})),
-                  "Failed [tmpasp_jump2]."); */
+                  "Failed [tmpasp_jump]."); */
+
+    // mnożenie
+    static_assert(compare(
+            Computer<4, int>::boot<tmpasm_multiplication>(),
+            std::array<int, 4>({0,10,50,0})),
+                  "Failed [tmpasm_multiplication].");
+
 }
 
