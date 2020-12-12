@@ -165,41 +165,6 @@ struct Program {
 
     template<uint64_t key, size_t value>
     struct KeyValuePair {};
-
-    template<size_t index, typename... Instructions>
-    struct MappingInternal {
-        using type = std::tuple<>;
-    };
-
-    template<size_t index, uint64_t key, typename value, typename... Instructions>
-    struct MappingInternal<index, std::tuple<D<key, value>, Instructions...>> {
-        using type = typename TupleCat<typename MappingInternal<index + 1, std::tuple<Instructions...>>::type, std::tuple<KeyValuePair<key, index>>>::type;
-    };
-
-    template<size_t index, typename SingleInstruction, typename... Instructions>
-    struct MappingInternal<index, std::tuple<SingleInstruction, Instructions...>> {
-        using type = typename MappingInternal<index, std::tuple<Instructions...>>::type;
-    };
-
-    template<typename Instructions>
-    struct Mapping {
-        using type = typename MappingInternal<0, Instructions>::type;
-    };
-
-    template<uint64_t key, typename MappingType>
-    struct MatchKeyMapping {
-    };
-
-    template <uint64_t key, size_t val, typename ...OtherKeyValuePairs>
-    struct MatchKeyMapping<key, std::tuple<KeyValuePair<key, val>, OtherKeyValuePairs...>> {
-        constexpr static size_t value = val;
-    };
-
-    template <uint64_t key, uint64_t key2, size_t val, typename ...OtherKeyValuePairs>
-    struct MatchKeyMapping<key, std::tuple<KeyValuePair<key2, val>, OtherKeyValuePairs...>> {
-        constexpr static size_t value = MatchKeyMapping<key, std::tuple<OtherKeyValuePairs...>>::value;
-    };
-
 };
 
 template<typename T>
