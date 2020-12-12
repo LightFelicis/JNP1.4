@@ -90,7 +90,13 @@ using decl2 = Program<
 using dec = Program<
         D<Id("d"), Num<1>>>;
 
+using pusty = Program<>;
 
+using tmpasm_jump2 = Program<
+        Label<Id("stop")>,
+        Inc<Mem<Num<0>>>,
+        Inc<Mem<Num<0>>>,
+        Jmp<Id("stop")>>;
 
 int main() {
     static_assert(compare(
@@ -140,4 +146,18 @@ int main() {
             Computer<1, int64_t>::boot<dec>(),
             std::array<int64_t, 1>({1})),
                   "Failed [dec].");
+
+    static_assert(compare(
+            Computer<1, int64_t>::boot<pusty>(),
+            std::array<int64_t, 1>({0})),
+                  "Failed [dec].");
+
+    // infinite loop, powinno się wywalać
+
+    /*
+    static_assert(compare(
+            Computer<1, int>::boot<tmpasm_jump2>(),
+            std::array<int, 1>({2})),
+                  "Failed [tmpasp_jump2]."); */
 }
+
