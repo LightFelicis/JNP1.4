@@ -275,7 +275,8 @@ struct InitialInstructionsParsing<
 
 /* Parsowanie instrukcji */
 
-// passedLabel jest ustawiany na false przy wykonaniu skoku, zmieniany na true po znalezieniu odpowiedniego Label
+// passedLabel jest ustawiany na false przy wykonaniu skoku,
+// zmieniany na true po znalezieniu odpowiedniego Label
 // gdy passedLabel = false, instrukcja nie jest wykonywana
 template <size_t memorySize, typename T, typename JumpLabel, bool passedLabel,
         typename InstructionsOrigin, typename... Instructions>
@@ -353,7 +354,7 @@ template <size_t memorySize, typename T, typename keyLabel, uint64_t newLabel,
 struct InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
         std::tuple<Js<newLabel>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        if (s.sf == true) {
+        if (s.sf) {
             InstructionsRunner<memorySize, T, Label<newLabel>, false,
                     InstructionsOrigin, InstructionsOrigin>::evaluate(s);
         } else {
@@ -369,7 +370,7 @@ template <size_t memorySize, typename T, typename keyLabel, uint64_t newLabel,
 struct InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
         std::tuple<Jz<newLabel>, Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        if (s.zf == 1) {
+        if (s.zf) {
             InstructionsRunner<memorySize, T, Label<newLabel>, false,
                     InstructionsOrigin, InstructionsOrigin>::evaluate(s);
         } else {
