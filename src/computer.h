@@ -251,7 +251,7 @@ struct InitialInstructionsParsing<memorySize, T,
                                   std::tuple<D<key, value>, Instructions...>> {
   constexpr static void evaluate(State<memorySize, T> &s) {
     if(s.decCount == memorySize) {
-        throw "Too many declarations";
+        throw std::invalid_argument("Too many declarations");
     }
     s.declarationIDs[s.decCount] = key;
     s.memoryBlocks[s.decCount] = value::value;
@@ -308,8 +308,8 @@ template <size_t memorySize, typename T, typename keyLabel,
         typename InstructionsOrigin, typename... Instructions>
 struct InstructionsRunner<memorySize, T, keyLabel, false, InstructionsOrigin,
         std::tuple<Instructions...>> {
-    constexpr static void evaluate(State<memorySize, T> &s) {
-        throw "Non-existent label";
+    constexpr static void evaluate(State<memorySize, T> &) {
+        throw std::invalid_argument("Non-existent label");
     }
 };
 
@@ -344,7 +344,7 @@ template <size_t memorySize, typename T, typename keyLabel, uint64_t newLabel,
 struct InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
                           std::tuple<Js<newLabel>, Instructions...>> {
   constexpr static void evaluate(State<memorySize, T> &s) {
-    if (s.sf == 1) {
+    if (s.sf == true) {
       InstructionsRunner<memorySize, T, Label<newLabel>, false,
                          InstructionsOrigin, InstructionsOrigin>::evaluate(s);
     } else {
@@ -421,7 +421,7 @@ template <size_t memorySize, typename T, typename keyLabel, typename Arg,
 struct InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
                           std::tuple<Inc<Arg>, Instructions...>> {
   constexpr static void evaluate(State<memorySize, T> &s) {
-    Arg::template getLvalue<T, memorySize>(s)++;
+    Arg::template getLvalue<T, memorySize>(s) += 1;
     s.zf = Arg::template getRvalue<T, memorySize>(s) == 0;
     s.sf = Arg::template getRvalue<T, memorySize>(s) < 0;
     InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
@@ -435,7 +435,7 @@ template <size_t memorySize, typename T, typename keyLabel, typename Arg,
 struct InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
                           std::tuple<Dec<Arg>, Instructions...>> {
   constexpr static void evaluate(State<memorySize, T> &s) {
-    Arg::template getLvalue<T, memorySize>(s)--;
+    Arg::template getLvalue<T, memorySize>(s) -= 1;
     s.zf = Arg::template getRvalue<T, memorySize>(s) == 0;
     s.sf = Arg::template getRvalue<T, memorySize>(s) < 0;
     InstructionsRunner<memorySize, T, keyLabel, true, InstructionsOrigin,
