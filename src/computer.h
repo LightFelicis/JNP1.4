@@ -94,7 +94,7 @@ struct Lea {
     for (size_t i = 0; i < s.decCount; i++) {
       if (I == s.declarationIDs[i]) return i;
     }
-    throw "Nonexisting ID";
+    throw std::invalid_argument("Nonexisting ID");
   }
 };
 
@@ -250,6 +250,9 @@ template <size_t memorySize, typename T, uint64_t key, typename value,
 struct InitialInstructionsParsing<memorySize, T,
                                   std::tuple<D<key, value>, Instructions...>> {
   constexpr static void evaluate(State<memorySize, T> &s) {
+    if(s.decCount == memorySize) {
+        throw "Too many declarations";
+    }
     s.declarationIDs[s.decCount] = key;
     s.memoryBlocks[s.decCount] = value::value;
     s.decCount++;
@@ -299,6 +302,15 @@ struct InstructionsRunner<memorySize, T, keyLabel, false, InstructionsOrigin,
     InstructionsRunner<memorySize, T, keyLabel, false, InstructionsOrigin,
                        std::tuple<Instructions...>>::evaluate(s);
   }
+};
+
+template <size_t memorySize, typename T, typename keyLabel,
+        typename InstructionsOrigin, typename... Instructions>
+struct InstructionsRunner<memorySize, T, keyLabel, false, InstructionsOrigin,
+        std::tuple<Instructions...>> {
+    constexpr static void evaluate(State<memorySize, T> &s) {
+        static_assert("Non-existent label");
+    }
 };
 
 template <size_t memorySize, typename T, typename keyLabel,
