@@ -309,7 +309,7 @@ template <size_t memorySize, typename T, typename keyLabel,
 struct InstructionsRunner<memorySize, T, keyLabel, false, InstructionsOrigin,
         std::tuple<Instructions...>> {
     constexpr static void evaluate(State<memorySize, T> &s) {
-        static_assert("Non-existent label");
+        throw "Non-existent label";
     }
 };
 
